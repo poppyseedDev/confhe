@@ -1,6 +1,7 @@
-export const CONTRACT_ADDRESS = '0x1234567890abcdef1234567890abcdef12345678';
+export const CONTRACT_ADDRESS = '0xbEA34b963599974F154195616c213f19a508A8d4';
 
-import BallotABI from '@deployments/sepolia/Ballot.json';
+import Ballot from '@deployments/sepolia/Ballot.json';
+const BallotABI = Ballot.abi;
 export const CONTRACT_ABI = BallotABI;
 
 export const NETWORK = {

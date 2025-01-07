@@ -12,6 +12,7 @@ import {
   storePublicKey,
   storePublicParams,
 } from './fhevmStorage';
+import { ethers } from 'ethers';
 
 import {
   reencryptRequestMocked,
@@ -42,17 +43,21 @@ let instance: FhevmInstance;
 
 const keypairs: Keypairs = {};
 
+// Instancia FHEVM
 export const createFhevmInstance = async () => {
   if (instancePromise) return instancePromise;
+
   const storedPublicKey = await getPublicKey(ACL_ADDRESS);
   const publicKey = storedPublicKey?.publicKey;
   const publicKeyId = storedPublicKey?.publicKeyId;
   const storedPublicParams = await getPublicParams(ACL_ADDRESS);
+
   const publicParams = storedPublicParams
     ? {
         '2048': storedPublicParams,
       }
     : null;
+
   instancePromise = createInstance({
     network: window.ethereum,
     aclContractAddress: ACL_ADDRESS,
@@ -62,17 +67,17 @@ export const createFhevmInstance = async () => {
     publicKeyId,
     publicParams,
   });
+
   instance = await instancePromise;
+
   const pp = instance.getPublicParams(2048);
-  if (pp) {
-    await storePublicParams(ACL_ADDRESS, pp);
-  }
+  if (pp) await storePublicParams(ACL_ADDRESS, pp);
+
   const pk = instance.getPublicKey();
-  if (pk) {
-    await storePublicKey(ACL_ADDRESS, pk);
-  }
+  if (pk) await storePublicKey(ACL_ADDRESS, pk);
 };
 
+// Guardar y obtener keypair
 export const setKeypair = (
   contractAddress: string,
   userAddress: string,
@@ -104,5 +109,18 @@ export const getInstance = () => {
     return instanceMocked;
   } else {
     return instance;
+  }
+};
+
+export const generateVoteProof = async (
+  votes: boolean[],
+  verifyingContract: string,
+) => {
+  try {
+    const encryptedInputs = votes.map(() => '0x' + 'a'.repeat(64)); // Simulamos valores cifrados
+    const proof = '0x' + 'b'.repeat(128); // Simulamos un proof válido
+    return { proof, encryptedInputs };
+  } catch {
+    throw new Error('Failed to generate vote proof');
   }
 };

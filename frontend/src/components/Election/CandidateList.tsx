@@ -1,13 +1,12 @@
-import React from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { useGetProposal } from '../../hooks/useBallotContract';
 
 interface Candidate {
   id: number;
-  name: string;
   party: string;
   icon: string;
   proposals: string[];
-  votes: number;
 }
 
 interface CandidateListProps {
@@ -23,6 +22,38 @@ export const CandidateList: React.FC<CandidateListProps> = ({
   setSelectedCandidate,
   hasVoted,
 }) => {
+  const { getProposal } = useGetProposal();
+  const [candidateData, setCandidateData] = useState<Candidate[]>([]);
+
+  const proposalCount = useMemo(() => candidates.length, [candidates]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchProposals = async () => {
+      try {
+        const updatedCandidates = await Promise.all(
+          candidates.map(async (candidate, index) => {
+            const result = await getProposal(index);
+            return {
+              ...candidate,
+              name: result?.data?.name || `Candidate ${index + 1}`,
+            };
+          }),
+        );
+        if (isMounted) setCandidateData(updatedCandidates);
+      } catch (error) {
+        console.error('Error fetching proposals:', error);
+      }
+    };
+
+    fetchProposals();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [getProposal, proposalCount]); // Stabilized dependencies
+
   return (
     <motion.ul
       className="candidate-list"
@@ -30,7 +61,7 @@ export const CandidateList: React.FC<CandidateListProps> = ({
       animate={{ opacity: 1 }}
       transition={{ duration: 1, delay: 0.5 }}
     >
-      {candidates.map((candidate) => (
+      {candidateData.map((candidate) => (
         <motion.li
           key={candidate.id}
           className={`candidate ${
@@ -48,8 +79,8 @@ export const CandidateList: React.FC<CandidateListProps> = ({
             </div>
           </div>
           <ul className="candidate-proposals">
-            {candidate.proposals.map((proposal, index) => (
-              <li key={index}>{proposal}</li>
+            {candidate.proposals.map((proposal, idx) => (
+              <li key={idx}>{proposal}</li>
             ))}
           </ul>
         </motion.li>

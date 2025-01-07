@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import './Devnet.css';
-import { Eip1193Provider, ZeroAddress } from 'ethers';
 import { ethers } from 'ethers';
+import Ballot from '@deployments/sepolia/Ballot.json';
 
 export type DevnetProps = {
   account: string;
-  provider: Eip1193Provider;
+  provider: ethers.providers.Web3Provider;
   onConnectionSuccess: () => void;
 };
 
@@ -14,34 +14,31 @@ export const Devnet = ({
   provider,
   onConnectionSuccess,
 }: DevnetProps) => {
-  const [contractAddress, setContractAddress] = useState(ZeroAddress);
-
+  const [contractAddress, setContractAddress] = useState<string>('');
+  const [ballotStatus, setBallotStatus] = useState<boolean | null>(null);
+  const BallotABI = Ballot.abi;
   useEffect(() => {
     const loadData = async () => {
       try {
-        let MyConfidentialERC20;
+        let Ballot;
         if (!import.meta.env.MOCKED) {
-          MyConfidentialERC20 = await import(
-            '@deployments/sepolia/MyConfidentialERC20.json'
-          );
+          Ballot = await import('@deployments/sepolia/Ballot.json');
           console.log(
-            `Using ${MyConfidentialERC20.address} for the token address on Sepolia`,
+            `Using ${Ballot.address} for the Ballot contract on Sepolia`,
           );
         } else {
-          MyConfidentialERC20 = await import(
-            '@deployments/localhost/MyConfidentialERC20.json'
-          );
+          Ballot = await import('@deployments/localhost/Ballot.json');
           console.log(
-            `Using ${MyConfidentialERC20.address} for the token address on Hardhat Local Node`,
+            `Using ${Ballot.address} for the Ballot contract on Hardhat Local Node`,
           );
         }
 
-        setContractAddress(MyConfidentialERC20.address);
-        alert('Conexión exitosa');
+        setContractAddress(Ballot.address);
+        alert('Conexión exitosa con el contrato Ballot');
         onConnectionSuccess();
       } catch (error) {
         console.error(
-          'Error loading data - you probably forgot to deploy the token contract before running the front-end server:',
+          'Error loading Ballot contract data. Make sure the contract is deployed and accessible:',
           error,
         );
       }
@@ -50,22 +47,30 @@ export const Devnet = ({
     loadData();
   }, [onConnectionSuccess]);
 
-  const getHandleBalance = async () => {
-    if (contractAddress !== ZeroAddress) {
-      const contract = new ethers.Contract(
-        contractAddress,
-        ['function balanceOf(address) view returns (uint256)'],
-        provider,
-      );
-      const handleBalance = await contract.balanceOf(account);
-      setHandleBalance(handleBalance.toString());
-      setDecryptedBalance('???');
+  const getBallotStatus = async () => {
+    if (contractAddress) {
+      try {
+        const contract = new ethers.Contract(
+          contractAddress,
+          BallotABI,
+          provider,
+        );
+        const status = await contract.get_ballot_status();
+        setBallotStatus(status);
+        console.log(`Ballot status: ${status}`);
+      } catch (error) {
+        console.error('Error fetching ballot status:', error);
+      }
     }
   };
 
-  useEffect(() => {
-    getHandleBalance();
-  }, [account, provider, contractAddress]);
-
-  return null;
+  return (
+    <div>
+      <p>Connected to Ballot Contract at: {contractAddress}</p>
+      <button onClick={getBallotStatus}>Check Ballot Status</button>
+      {ballotStatus !== null && (
+        <p>Ballot Status: {ballotStatus ? 'Finished' : 'Active'}</p>
+      )}
+    </div>
+  );
 };

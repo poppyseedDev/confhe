@@ -5,6 +5,7 @@ import { CandidateList } from './CandidateList';
 import { ElectionResults } from './ElectionResults';
 import { NewCandidateForm } from './NewCandidateForm';
 import { ActionButtons } from './ActionButtons';
+import { useBallotIsActive } from '../../hooks/useBallotContract'; // Importa el custom hook
 import './Election.css';
 
 interface Candidate {
@@ -60,7 +61,6 @@ export const Election: React.FC = () => {
   const [selectedCandidate, setSelectedCandidate] = useState<number | null>(
     null,
   );
-  const [isActive, setIsActive] = useState(true);
   const [candidates, setCandidates] = useState<Candidate[]>(candidatesInitial);
   const [showForm, setShowForm] = useState(false);
   const [newCandidate, setNewCandidate] = useState({
@@ -69,6 +69,21 @@ export const Election: React.FC = () => {
     proposals: [''],
   });
   const [hasVoted, setHasVoted] = useState<boolean>(false);
+  const [localIsActive, setLocalIsActive] = useState<boolean>(true);
+
+  // Uso del hook para consultar el estado del ballot en el contrato
+  const {
+    isActive: contractIsActive,
+    loading,
+    error,
+    refresh,
+  } = useBallotIsActive();
+
+  useEffect(() => {
+    console.log('Ballot active (contract):', contractIsActive);
+    console.log('Loading:', loading);
+    console.log('Error:', error);
+  }, [contractIsActive, loading, error]);
 
   const getVotePercentage = (votes: number, totalVotes: number): string => {
     if (totalVotes === 0) return '0%';
@@ -88,29 +103,11 @@ export const Election: React.FC = () => {
 
       if (difference <= 0) {
         clearInterval(interval);
-        setIsActive(false);
       }
     }, 1000);
 
     return () => clearInterval(interval);
   }, []);
-
-  const logVoteRequests = (candidateId: number | null) => {
-    if (candidateId === null) return;
-
-    candidates.forEach((candidate, index) => {
-      const isVoted = candidate.id === candidateId;
-
-      setTimeout(() => {
-        console.log(`Index: ${index}, Voted: ${isVoted}`);
-        simulateRequest(index, isVoted);
-      }, index * 500);
-    });
-  };
-
-  const simulateRequest = (index: number, isVoted: boolean) => {
-    console.log(`Simulating request -> Index: ${index}, Voted: ${isVoted}`);
-  };
 
   const formatTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
@@ -133,22 +130,15 @@ export const Election: React.FC = () => {
     }
   };
 
-  const finalizeVoting = () => {
-    setIsActive(false);
-    alert('Voting has been finalized!');
-  };
-
   const resetElection = () => {
     setCandidates([]);
     setNewCandidate({ name: '', party: '', proposals: [''] });
     setShowForm(true);
-    setIsActive(false);
     setHasVoted(false);
   };
 
   const startElection = () => {
     if (candidates.length > 0) {
-      setIsActive(true);
       setShowForm(false);
       alert('Election has started!');
     } else {
@@ -193,6 +183,11 @@ export const Election: React.FC = () => {
     }
   };
 
+  const startVotingPhase = () => {
+    setLocalIsActive(true); // Activa la vista de `CandidateList`
+    setShowForm(false); // Oculta el formulario
+  };
+
   return (
     <motion.div
       className="election-container"
@@ -201,10 +196,19 @@ export const Election: React.FC = () => {
       transition={{ duration: 0.8 }}
     >
       <ElectionHeader
-        isActive={isActive}
+        isActive={!!contractIsActive}
         timeLeft={timeLeft}
         formatTime={formatTime}
       />
+
+      {loading && <p>Loading contract status...</p>}
+      {error && <p>Error: {error}</p>}
+      {!loading && !error && (
+        <p>
+          Ballot Active Status (from contract):{' '}
+          {contractIsActive ? 'Active' : 'Finished'}
+        </p>
+      )}
 
       {hasVoted && (
         <motion.div
@@ -217,7 +221,7 @@ export const Election: React.FC = () => {
         </motion.div>
       )}
 
-      {isActive ? (
+      {localIsActive ? (
         <CandidateList
           candidates={candidates}
           selectedCandidate={selectedCandidate}
@@ -232,13 +236,13 @@ export const Election: React.FC = () => {
         />
       )}
 
-      {isActive && (
+      {contractIsActive && (
         <ActionButtons
           selectedCandidate={selectedCandidate}
           hasVoted={hasVoted}
           handleVote={handleVote}
-          finalizeVoting={finalizeVoting}
-          logVoteRequests={logVoteRequests}
+          finishVote={() => setLocalIsActive(false)}
+          localIsActive={localIsActive}
         />
       )}
 
@@ -248,7 +252,7 @@ export const Election: React.FC = () => {
           handleNewCandidateChange={handleNewCandidateChange}
           addProposal={addProposal}
           createNewCandidate={createNewCandidate}
-          startElection={startElection}
+          startVotingPhase={startVotingPhase}
           candidatesCount={candidates.length}
         />
       )}

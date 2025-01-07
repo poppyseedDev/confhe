@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { BrowserProvider } from 'ethers';
 import { ErrorComponent } from '../Error/Error';
 import { createFhevmInstance } from '../../fhevmjs';
+import { useStartBallot } from '../../hooks/useBallotContract';
 import './Connect.css';
 
 const AUTHORIZED_CHAIN_ID = ['0xaa36a7', '0x2328', '0x7a69'];
@@ -17,11 +18,19 @@ export const Connect: React.FC<{
   const [provider, setProvider] = useState<BrowserProvider | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Hook para iniciar el ballot
+  const {
+    startBallot,
+    loading: startingBallot,
+    error: startBallotError,
+  } = useStartBallot();
+
   const refreshAccounts = (accounts: string[]) => {
     setAccount(accounts[0] || null);
     setConnected(accounts.length > 0);
     if (accounts.length > 0 && validNetwork) {
       onConnectionSuccess();
+      startBallot(); // Llamar a startBallot automáticamente
     }
   };
 
@@ -130,15 +139,15 @@ export const Connect: React.FC<{
       );
     }
 
-    if (loading) return <p>Loading...</p>;
+    if (loading || startingBallot) return <p>Loading...</p>;
 
     return children(account, provider);
-  }, [account, provider, children, validNetwork, loading]);
+  }, [account, provider, children, validNetwork, loading, startingBallot]);
 
-  if (error) {
+  if (error || startBallotError) {
     return (
       <ErrorComponent
-        errorMessage={error}
+        errorMessage={error || startBallotError || ''}
         onConnectionSuccess={(account) => setAccount(account)}
         onConnectionError={(err) => setError(err)}
       />

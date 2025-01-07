@@ -1,39 +1,88 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useCastVote, useFinishBallot } from '../../hooks/useBallotContract';
+import { generateVoteProof } from '../../fhevmjs';
 
 interface ActionButtonsProps {
   selectedCandidate: number | null;
   hasVoted: boolean;
+  localIsActive: boolean;
   handleVote: () => void;
-  finalizeVoting: () => void;
-  logVoteRequests: (candidateId: number | null) => void;
+  finishVote: () => void;
 }
 
 export const ActionButtons: React.FC<ActionButtonsProps> = ({
   selectedCandidate,
   hasVoted,
   handleVote,
-  finalizeVoting,
-  logVoteRequests,
+  finishVote,
+  localIsActive,
 }) => {
-  const handleVoteClick = () => {
+  const { castVote } = useCastVote();
+  const {
+    finishBallot,
+    loading: finishingBallot,
+    error: finishBallotError,
+  } = useFinishBallot();
+
+  const [votingError, setVotingError] = useState<string | null>(null);
+
+  const handleVoteClick = async () => {
     if (selectedCandidate !== null) {
-      logVoteRequests(selectedCandidate); // Realiza las solicitudes al presionar "Vote"
-      handleVote(); // Registra el voto
+      try {
+        console.log('Generating boolean votes...');
+        const votes: boolean[] = [false, false, false];
+        votes[selectedCandidate] = true; // Marca solo el candidato seleccionado
+
+        console.log('Generating vote proof...');
+        const { proof, encryptedInputs } = await generateVoteProof(
+          votes,
+          '0x86093b5731BadDdA9C46E13c05D510e28D39F8dF', // Dirección hardcodeada
+        );
+
+        console.log('Vote proof and encrypted inputs generated:', {
+          proof,
+          encryptedInputs,
+        });
+
+        await castVote(encryptedInputs, proof);
+        handleVote();
+      } catch (error: any) {
+        console.error('Error during vote process:', error);
+        setVotingError(error.message || 'Failed to cast vote.');
+      }
     }
   };
 
+  const handleFinalizeVoting = async () => {
+    try {
+      await finishBallot();
+      alert('Voting has been finalized!');
+      finishVote();
+    } catch (error) {
+      console.error('Error finalizing voting:', error);
+    }
+  };
+  if(!localIsActive) return null
   return (
     <div className="buttons-section">
       <button
-        className={`vote-button ${selectedCandidate !== null && !hasVoted ? '' : 'disabled'}`}
+        className={`vote-button ${
+          selectedCandidate !== null && !hasVoted ? '' : 'disabled'
+        }`}
         onClick={handleVoteClick}
         disabled={selectedCandidate === null || hasVoted}
       >
         Vote
       </button>
-      <button className="finalize-button" onClick={finalizeVoting}>
-        Finalize Voting
+      <button
+        className="finalize-button"
+        onClick={handleFinalizeVoting}
+        disabled={finishingBallot}
+      >
+        {finishingBallot ? 'Finalizing...' : 'Finalize Voting'}
       </button>
+      {votingError && <p style={{ color: 'red' }}>{votingError}</p>}
+      {finishBallotError && <p style={{ color: 'red' }}>{finishBallotError}</p>}
     </div>
   );
 };
